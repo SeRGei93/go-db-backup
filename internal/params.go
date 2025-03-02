@@ -7,6 +7,13 @@ import (
 	"strconv"
 )
 
+var (
+	RemoveFlag             bool
+	RestoreFlag            bool
+	RestoreToContainerFlag bool
+	Dir                    string
+)
+
 type SshConnectionParams struct {
 	host     string
 	port     int
@@ -22,9 +29,10 @@ type DatabaseConnectionParams struct {
 }
 
 func InitFlags() {
-	flag.Bool("backup", false, "Выполнить бэкап базы данных")
-	flag.Bool("restore", false, "Выполнить восстановление дампа")
-	flag.Bool("docker", false, "Восстановление в докер контейнер")
+	flag.StringVar(&Dir, "dir", "./backups", "Директория для бекапов")
+	flag.BoolVar(&RemoveFlag, "remove", true, "Удалить дамп после завершения")
+	flag.BoolVar(&RestoreFlag, "restore", false, "Выполнить восстановление дампа")
+	flag.BoolVar(&RestoreToContainerFlag, "docker", false, "Восстановление в докер контейнер")
 
 	// Определяем флаги для SSH
 	flag.String("ssh_host", "", "SSH хост")
@@ -46,6 +54,7 @@ func InitFlags() {
 
 	// Парсим все флаги
 	flag.Parse()
+
 }
 
 func InitParamsSSHFromFlags() (SshConnectionParams, error) {

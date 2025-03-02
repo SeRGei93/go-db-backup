@@ -23,4 +23,6 @@ run:
 	--restore_db_name=$(RESTORE_DB_NAME) \
 	--restore_db_user=$(RESTORE_DB_USER) \
 	--restore_db_password=$(RESTORE_DB_PASSWORD) \
-	--restore_db_host=$(RESTORE_DB_HOST)
+	--restore_db_host=$(RESTORE_DB_HOST) \
+	--dir=./backups \
+	--remove=true

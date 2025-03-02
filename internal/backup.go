@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"github.com/pkg/sftp"
+	"github.com/schollz/progressbar/v3"
 	"golang.org/x/crypto/ssh"
 	"io"
 	"os"
@@ -11,7 +12,9 @@ import (
 )
 
 func BackupDatabase(sshClient *ssh.Client, dbParams DatabaseConnectionParams, backupFile string) error {
-	fmt.Println("Создаем дамп")
+	fmt.Println("Создаю дамп")
+	loading := make(chan bool)
+	go spinner(loading)
 
 	remoteFile := fmt.Sprintf("/tmp/%s.sql.gz", dbParams.Name)
 
@@ -39,8 +42,7 @@ func BackupDatabase(sshClient *ssh.Client, dbParams DatabaseConnectionParams, ba
 		return fmt.Errorf("ошибка выполнения mysqldump: %w, stderr: %s", err, stderrBuf.String())
 	}
 
-	fmt.Println("Дамп готов")
-
+	loading <- true
 	return DownloadDumpFile(sshClient, remoteFile, backupFile)
 }
 
@@ -52,8 +54,6 @@ func GetBackupFileName(dir string) (string, error) {
 }
 
 func DownloadDumpFile(sshClient *ssh.Client, remoteFile string, backupFile string) error {
-	fmt.Println("Скачиваем дамп")
-
 	// Открываем SFTP-соединение
 	sftpClient, err := sftp.NewClient(sshClient)
 	if err != nil {
@@ -65,6 +65,13 @@ func DownloadDumpFile(sshClient *ssh.Client, remoteFile string, backupFile strin
 
 		}
 	}(sftpClient)
+
+	// Получаем информацию о файле (размер)
+	remoteFileStat, err := sftpClient.Stat(remoteFile)
+	if err != nil {
+		return fmt.Errorf("не удалось получить информацию о файле: %w", err)
+	}
+	totalSize := remoteFileStat.Size()
 
 	// Открываем удалённый файл
 	remoteFileHandle, err := sftpClient.Open(remoteFile)
@@ -90,10 +97,12 @@ func DownloadDumpFile(sshClient *ssh.Client, remoteFile string, backupFile strin
 		}
 	}(localFile)
 
-	// Копируем файл с сервера на локальную машину
-	_, err = io.Copy(localFile, remoteFileHandle)
+	// Создаём прогресс-бар
+	bar := progressbar.DefaultBytes(totalSize, "📥 Скачиваю дамп...")
+	// Используем TeeReader для отслеживания прогресса
+	_, err = io.Copy(io.MultiWriter(localFile, bar), remoteFileHandle)
 	if err != nil {
-		return fmt.Errorf("ошибка копирования бекапа: %w", err)
+		return fmt.Errorf("ошибка копирования бэкапа: %w", err)
 	}
 
 	// Удаляем временный файл на сервере
@@ -101,8 +110,6 @@ func DownloadDumpFile(sshClient *ssh.Client, remoteFile string, backupFile strin
 	if err != nil {
 		fmt.Printf("⚠ Не удалось удалить временный файл %s: %v\n", remoteFile, err)
 	}
-
-	fmt.Println("Скачивание дампа завершено")
-
+	fmt.Println("\n✅ Скачивание завершено:", backupFile)
 	return nil
 }
