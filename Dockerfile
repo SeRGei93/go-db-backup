@@ -7,7 +7,11 @@ COPY . .
 RUN make build
 
 FROM alpine:latest
+RUN apk add --no-cache mysql-client
+
 WORKDIR /app
 COPY --from=build /app/build/backup_app /app/backup_app
 RUN mkdir -p /app/backups && chmod 777 /app/backups
-CMD ["./backup_app"]
+
+ENTRYPOINT ["/app/backup_app"]
+CMD ["--help"]
